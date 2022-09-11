@@ -1,0 +1,961 @@
+---
+title: "Cyclistic bikes Case Study"
+author: "Lucas Sirieiro"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: 
+      bootswatch: solar
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999)
+```
+
+## This is a Case Study proposed as a 'Capstone Project' by the Google Data Analytics Certificate
+My idea is to do a few different projects to create a portfolio, probably using different tools to do so, but I'll start with R because it's the one that I liked the most (SQL, Tableau and Spreadsheets are the other options).  
+  
+**EDIT:** Now that I've finished the project I have to say that querying a data set is a lot easier/simpler on SQL. Manipulating a table is simpler and often faster on a spreadsheet. Making a striking Viz is quite easier on Tableau. But only R can do it all, and has R Markdown. This was quite a learning ride, I gotta say.
+  
+I don't know how much of the project's guideline I can share here, I couldn't find any specifics about that on the Project's Guide, and I'll therefore only show here enough to provide context. Alas, the data used here has been made available online under this [license](https://ride.divvybikes.com/data-license-agreement) and can be accessed [here](https://divvy-tripdata.s3.amazonaws.com/index.html).  
+  
+This project follows the Data Life Cycle as presented in the Google Course:
+
+* **Ask**
+* **Prepare**
+* **Process**
+* **Analyze**
+* **Share**
+* **Act**
+  
+---
+
+### Ask
+
+**Guiding questions**:
+
+* What is the problem I'm trying to solve?
+
+The company has two kinds of users: *casual riders* (single-ride or full-day passes) and *annual members* (annual membership). The company wants to convert more *casuals* to *members* in order to increase revenue, because Cyclistic *members* are much more profitable than *casuals*.  
+  
+The director of marketing wants to target this specific casual audience through email, social media, and other channels. To properly do so, they need to better understand the usage differences between *casuals* and *members*.  
+
+* How can my insights drive business decisions?
+
+The director of marketing will create a marketing campaign based on my findings (and of the rest of the team). This campaign will guide the future growth strategy of the company.  
+
+**Key tasks**:
+
+1. Identify the business task:
+  * Differentiate *casuals* and *members* usage of Cyclistic's Bike-sharing service to create a marketing campaign targeting *casual* users in order to convert them to members and therefore increase the company's revenue.
+2. Consider key stakeholders:
+  * **Lily Moreno**: The director of marketing and my manager.
+  * **Cyclistic marketing analytics team**: A team of data analysts who are responsible for collecting, analyzing, and reporting data that helps guide Cyclistic marketing strategy.
+  * **Cyclistic executive team**: notoriously detail-oriented executive team will decide whether to approve the recommended marketing program.
+  
+**Deliverable**:
+  
+* A clear statement of the business task:
+  * Analyze the last 12 months of data to better understand how *casuals* and *members* differ in order to develop a marketing strategy to target *casuals* and turn them into *members*.
+  
+---
+
+### Prepare  
+  
+Data constraints: privacy issues restrict the access to personally identifiable information. This means I can't know where the users live or how often they use the service. This is specially important because I can't tell if a casual user purchased multiple single passes.  
+  
+At this stage I'll have to start manipulating the data, so I'll load the basic library I'll need to work with this data going forward, as well as creating a data frame from the .csv file.  
+  
+```{r loading the tidyverse}
+library(tidyverse)
+tripdata_aug_2021 = read_csv("202108-divvy-tripdata.csv")
+```
+  
+**Guiding Questions**  
+  
+* Where is your data located?
+  
+The data is made available online through the owner's channels.  
+  
+* How is the data organized?  
+  
+The data is organized on a table, separated by month/year. Each ride is identifiable by it's unique `ride_id`. It also contains observations on bike type, where the ride started and ended (both station and coordinates), when it started/ended, and if the user was a *member* or a *casual*.  
+  
+To take a quick look and better understand this data, we `glimpse` it:  
+  
+```{r first glimpse at the data}
+glimpse(tripdata_aug_2021)
+```
+  
+We see that the data has several null values on the station identification columns, so users can probably park where they want, and not necessarily on any given station. Now we want to understand how many different rideable_types there are:  
+  
+```{r checking bike types}
+unique(tripdata_aug_2021[c("rideable_type")])
+```
+  
+So we have 3 different bikes. Good. We can check this for differences between *members* and *casuals*. We repeat the process with other columns:  
+  
+```{r checking unique values}
+unique(tripdata_aug_2021[c("member_casual")])
+unique(tripdata_aug_2021[c("start_station_name")])
+unique(tripdata_aug_2021[c("start_station_id")])
+unique(tripdata_aug_2021[c("end_station_name")])
+unique(tripdata_aug_2021[c("end_station_id")])
+```
+  
+That's a lot of stations,let's check how many unique values there are for the stations:
+
+```{r checking how many unique values there are}
+length(unique(tripdata_aug_2021$start_station_name))
+length(unique(tripdata_aug_2021$end_station_name))
+length(unique(tripdata_aug_2021$start_station_id))
+length(unique(tripdata_aug_2021$end_station_id))
+```
+  
+So, there's one missing start_station_id, but the number of station names match.
+
+* Does the data ROCCC?  
+  * Reliable: The data is accurate and complete, the null values are expected and it represents the whole of the users population.
+  * Original: it is provided by the company that collected it directly.
+  * Comprehensive: it honestly doesn't have all the information needed to answer the question in the best way possible, but as already explained above, for data-security reasons that can't be helped.
+  * Current: the data is from the last 12 months.
+  * Cited: we do know who collected it.
+  
+* How am I addressing licensing, privacy, security, and accessibility?  
+  
+The license under which the data was provided has already been shared above. The data is open to use and the privacy issues were explained previously. There's no identifying data on this data set.
+
+* Verify the data's integrity  
+  
+The data was checked above, but it also comes from a trusted and well known source. Further steps will be taken along the next phase.
+
+* How does the data helps me answer my questions?  
+  
+I can check for patterns in the data, like ride duration and stations used.
+
+* Are there any problems with the data?  
+  
+So far, only the fact that it is not truly complete, but that's it.  
+  
+**Key tasks**  
+  
+1. Download data and store it appropriately.
+  * Downloaded and stored it on it's project folder.
+2. Identify how it's organized.
+  * Done previously.
+3. Sort and filter the data.
+  * Coming next.
+4. Determine the credibility of the data.
+  * Check.
+
+```{r importing the rest of the data}
+tripdata_sep_2021 = read_csv("202109-divvy-tripdata.csv")
+tripdata_oct_2021 = read_csv("202110-divvy-tripdata.csv")
+tripdata_nov_2021 = read_csv("202111-divvy-tripdata.csv")
+tripdata_dec_2021 = read_csv("202112-divvy-tripdata.csv")
+tripdata_jan_2022 = read_csv("202201-divvy-tripdata.csv")
+tripdata_feb_2022 = read_csv("202202-divvy-tripdata.csv")
+tripdata_mar_2022 = read_csv("202203-divvy-tripdata.csv")
+tripdata_apr_2022 = read_csv("202204-divvy-tripdata.csv")
+tripdata_may_2022 = read_csv("202205-divvy-tripdata.csv")
+tripdata_jun_2022 = read_csv("202206-divvy-tripdata.csv")
+tripdata_jul_2022 = read_csv("202207-divvy-tripdata.csv")
+```
+  
+Now to filter by *members* and *casuals*:
+  
+```{r filter members}
+member_08_21 = filter(tripdata_aug_2021, member_casual == "member")
+member_09_21 = filter(tripdata_sep_2021, member_casual == "member")
+member_10_21 = filter(tripdata_oct_2021, member_casual == "member")
+member_11_21 = filter(tripdata_nov_2021, member_casual == "member")
+member_12_21 = filter(tripdata_dec_2021, member_casual == "member")
+member_01_22 = filter(tripdata_jan_2022, member_casual == "member")
+member_02_22 = filter(tripdata_feb_2022, member_casual == "member")
+member_03_22 = filter(tripdata_mar_2022, member_casual == "member")
+member_04_22 = filter(tripdata_apr_2022, member_casual == "member")
+member_05_22 = filter(tripdata_may_2022, member_casual == "member")
+member_06_22 = filter(tripdata_jun_2022, member_casual == "member")
+member_07_22 = filter(tripdata_jul_2022, member_casual == "member")
+```
+  
+```{r filter casuals}
+casual_08_21 = filter(tripdata_aug_2021, member_casual == "casual")
+casual_09_21 = filter(tripdata_sep_2021, member_casual == "casual")
+casual_10_21 = filter(tripdata_oct_2021, member_casual == "casual")
+casual_11_21 = filter(tripdata_nov_2021, member_casual == "casual")
+casual_12_21 = filter(tripdata_dec_2021, member_casual == "casual")
+casual_01_22 = filter(tripdata_jan_2022, member_casual == "casual")
+casual_02_22 = filter(tripdata_feb_2022, member_casual == "casual")
+casual_03_22 = filter(tripdata_mar_2022, member_casual == "casual")
+casual_04_22 = filter(tripdata_apr_2022, member_casual == "casual")
+casual_05_22 = filter(tripdata_may_2022, member_casual == "casual")
+casual_06_22 = filter(tripdata_jun_2022, member_casual == "casual")
+casual_07_22 = filter(tripdata_jul_2022, member_casual == "casual")
+```
+
+Next we combine the monthly data frames together so we can have a view of the last 12 months:  
+  
+```{r bind rows}
+members = bind_rows(member_01_22, member_02_22, member_03_22, member_04_22, member_05_22, member_06_22, member_07_22, member_08_21, member_09_21, member_10_21, member_11_21, member_12_21)
+casuals = bind_rows(casual_01_22, casual_02_22, casual_03_22, casual_04_22, casual_05_22, casual_06_22, casual_07_22, casual_08_21, casual_09_21, casual_10_21, casual_11_21, casual_12_21)
+
+```
+  
+Following that we want to know how many *member* and *casual* rides there are. But first we check the `members_casual` column for any missing or wrong values.  
+  
+```{r check values}
+unique(members[c("member_casual")])
+unique(casuals[c("member_casual")])
+```
+  
+Good. Our next step is the number of rides by membership type:  
+  
+```{r number of rides}
+table (members$member_casual)
+table (casuals$member_casual)
+```
+  
+So we have 3379237 *member* rides and 2522226 *casual* rides. *Members* lead here by 857011 rides! A significant margin. But before we do some quick maths with these, let assign those values to variables:  
+  
+```{r assign values}
+num_members = 3379237
+num_casuals = 2522226
+num_total = num_members + num_casuals
+```
+
+We are certainly getting ahead of ourselves here, but it can't be helped, the puzzle is calling! Let's see these numbers in percent of total rides:  
+  
+```{r quick maths}
+(num_members/num_total)*100
+(num_casuals/num_total)*100
+```
+  
+About 57.3% of rides are by *members* and 42.7 by *casuals*. A difference of 14.6%. We don't (and can't) know how many of those rides were by the same users.  
+  
+**Deliverable**  
+  
+  * A description of all data sources used
+    * We only used one data source, provided by Motivate International Inc. under this [license](https://ride.divvybikes.com/data-license-agreement), it can be accessed [here](https://divvy-tripdata.s3.amazonaws.com/index.html).
+    * It contains 13 different variables and several million observations.
+    * The unique key is the `ride_id`.
+    * It has start and end times. Therefore ride time can be calculated.
+    * We also find what type of bike was used.
+    * There is information on where the ride started and where it ended, with station names and coordinates.
+    * And if the user is a *member* or *casual*.
+  
+---  
+  
+### Process  
+  
+**Guiding Questions**  
+
+  * What tools am I choosing and why?
+    * I'm choosing R because I believe it it the most complete tool for the job. I have to deal with huge data sets, with millions of rows, which would take longer and be boring using a spreadsheet, basically excluding it. SQL would also be a great tool, but I can't visualize the data there, so I'd have to use more than one tool for this job, which is not necessarily a problem, but I also decided to do one project per tool to showcase my skills (or lack thereof). I also might have fallen in love with R Markdown. Just maybe.
+  * Have I ensured my data's integrity?
+    * Yes, on the previous phase.
+  * What steps have you taken to ensure that your data is clean?  
+  
+First, let's remove duplicates (if any[spoiler alert, there are no duplicates]):  
+    
+```{r removing duplicates}
+members %>% distinct()
+casuals %>% distinct()
+```
+  
+Now we trim leading and trailing white spaces in the data frames:  
+(Note: This code is set to not run by default due to it's immense output)  
+  
+```{r trim members, eval=FALSE, include=FALSE}
+trimws(members$ride_id, which = c("both"))
+trimws(members$rideable_type, which = c("both"))
+trimws(members$started_at, which = c("both"))
+trimws(members$ended_at, which = c("both"))
+trimws(members$start_station_name, which = c("both"))
+trimws(members$start_station_id, which = c("both"))
+trimws(members$end_station_name, which = c("both"))
+trimws(members$end_station_id, which = c("both"))
+trimws(members$start_lat, which = c("both"))
+trimws(members$start_lng, which = c("both"))
+trimws(members$end_lat, which = c("both"))
+trimws(members$end_lng, which = c("both"))
+trimws(members$member_casual, which = c("both"))
+```
+  
+There will be no output for this one, because the result is simply way too big to print here. Rest assured that R did it's job and the table was trimmed, pretty fast if we consider how many million values it had do go over.  
+  
+Next chunk will do the same as above, but for the *casuals* table:
+(Note: This code is set to not run by default due to it's immense output)
+  
+```{r trim casuals, eval=FALSE, include=FALSE}
+trimws(casuals$ride_id, which = c("both"))
+trimws(casuals$rideable_type, which = c("both"))
+trimws(casuals$started_at, which = c("both"))
+trimws(casuals$ended_at, which = c("both"))
+trimws(casuals$start_station_name, which = c("both"))
+trimws(casuals$start_station_id, which = c("both"))
+trimws(casuals$end_station_name, which = c("both"))
+trimws(casuals$end_station_id, which = c("both"))
+trimws(casuals$start_lat, which = c("both"))
+trimws(casuals$start_lng, which = c("both"))
+trimws(casuals$end_lat, which = c("both"))
+trimws(casuals$end_lng, which = c("both"))
+trimws(casuals$member_casual, which = c("both"))
+```
+  
+* Data-Type constraints: 
+  * A quick structure check should show us if the columns are in the right data-type:  
+   
+```{r structure check}
+str(members)
+str(casuals)
+```
+  
+Everything checks.  
+    
+* Range constraints:
+  * This is a tricky one because we don't have all the possible ranges for the ids. The coordinates honestly don't matter for this project, I haven't thought of any feasible way to use them here. We can check if the variables that can't have nulls have any:  
+      
+```{r value checks members}
+length(unique(members$rideable_type))
+length(unique(members$member_casual))
+length(unique(members$start_station_id))
+length(unique(members$end_station_id))
+```
+  
+Interesting. We know that there are 3 bike types, but it seems that the members only used 2 of those, which ones? The member_casual column shows only one value, that's good. Let's continue checking:  
+  
+```{r unique values check members}
+unique(members[c("rideable_type")])
+unique(members[c("member_casual")])
+unique(members[c("start_station_id")])
+unique(members[c("end_station_id")])
+```
+  
+Everything is as it should be. If the id columns had NA values, they would have been listed before all the others. Guess we gotta do the same checks for the *casuals*.  
+  
+```{r value checks casuals}
+length(unique(casuals$rideable_type))
+length(unique(casuals$member_casual))
+length(unique(casuals$start_station_id))
+length(unique(casuals$end_station_id))
+```
+  
+Hmm.. the *casuals* use more stations than *members*. I'd assume it's because there are more *casuals* than *members*, but we can't know for certain. The rest is in ordnung.  
+  
+```{r unique values check casuals}
+unique(casuals[c("rideable_type")])
+unique(casuals[c("member_casual")])
+unique(casuals[c("start_station_id")])
+unique(casuals[c("end_station_id")])
+```
+  
+*Casuals* use docked_bikes, something that *members* do not. Everything is in order. We still gotta check if the dates are in the last 12 months. We'll simply sort the data frames by date.  
+  
+```{r sort date members and load lubridate}
+library(lubridate)
+members %>% arrange(ymd_hms(members$started_at))
+members %>% arrange(desc(ymd_hms(members$ended_at)))
+```
+  
+Awesome, all rides are within the last 12 months. Casuals next:  
+  
+```{r sort date casuals}
+casuals %>% arrange(ymd_hms(casuals$started_at))
+casuals %>% arrange(desc(ymd_hms(casuals$ended_at)))
+```
+  
+Also correct. Interesting to note is the ride duration for the docked bikes, some are in days. Will keep that in mind.  
+  
+* How can I verify that my data is clean and ready to analyze?
+  * The result of the above steps show me that there are no problems with the data.  
+* Have I documented my cleaning process so I can review and share the results.
+  * Hell yeah, that's actually the best part of doing this in R. And the most fun! Looking forward to sharing this online.  
+  
+**Key Tasks**  
+  
+1. Check the data for errors.
+  * Done.
+2. Choose your tools.
+  * Done and done.
+3. Transform the data so you can work with it effectively.
+  * Check.
+4. Document the cleaning process.
+  * R Markdown > all.  
+  
+**Deliverable**  
+  
+* Documentation of any cleaning or manipulation of data.
+  * Gloriously done.  
+  
+---
+  
+### Analyze  
+  
+Ok, now it's time to find patterns, trends and insights. First thing I want to know is the average/min/max ride time for each category, and when/where they mostly took place.  
+  
+```{r creating weekday column}
+members$weekday = weekdays (members$started_at)
+casuals$weekday = weekdays (casuals$started_at)
+```
+  
+After that we create a ride_length column (in minutes):  
+  
+```{r ride_length column}
+members$ride_length = (members$ended_at - members$started_at) / 60
+casuals$ride_length = (casuals$ended_at - casuals$started_at) / 60
+```
+  
+Mean, max and min (oh yeah, first we gotta cast the datetime column as numeric):  
+  
+```{r min_max}
+members$ride_length = as.numeric(members$ride_length)
+mean(members$ride_length)
+max(members$ride_length)
+min(members$ride_length)
+```
+  
+What? How can the ride_length be negative?!  
+  
+```{r arrange ride_length}
+arrange(members, ride_length)
+```
+  
+We have several rides that started after they ended. Hmmmmmmmmmmm. What the hell. Okay, we try a couple things before assuming it was just a mistake from the system, and then count how many of those there are. For each category.  
+  
+```{r checking members}
+df1 = filter(members, ride_length < 0)
+dst(df1$started_at)
+dst(df1$ended_at)
+length(unique(df1$started_at))
+```
+
+We have 83 observations with negative times. None started or ended at daylight saving time, which could maaaybe account for some of the weirdness. I honestly don't know if the dst() function would work here, it might be checking from my local time, I don't know. But it doesn't matter, because dst in Chicago (where the data was collected) starts on March 13th and ends on November 6th, so it can't account for the vast majority of the entries here.  
+  
+After looking at the project guide, it suggest finding the mean and the max, but not the min, so I'm going to assume that was known somehow. It kinda sucks because I didn't think to check about this on the data-cleaning phase. Well. They have no statistical significance among the 3 million other values. Still hurts though. I guess I'll assume it was just a bug with their system.  
+  
+Oh yeah, now to do everything with the *casuals*:  
+  
+```{r checking casuals}
+df2 = filter(casuals, ride_length < 0)
+dst(df2$started_at)
+dst(df2$ended_at)
+length(unique(df2$started_at))
+```
+  
+They can also be found here, 66 of them. Back to the Mean and Max, then:  
+  
+```{r mean and max casuals}
+casuals$ride_length = as.numeric(casuals$ride_length)
+mean(casuals$ride_length)
+max(casuals$ride_length)
+min(casuals$ride_length)
+```
+  
+We see that the average ride time for *casuals* is about 29 minutes, more than double the amount of ride time for *members*, that sits at almost 13 minutes. The max ride time for *members* was almost 26 hours, also significantly less than its counterpart, at a whooping 693 hours or almost 29 days!! Of course we gotta check this out:  
+  
+```{r investigating docked bikes}
+casuals %>% arrange(desc(ride_length)) %>% select(ride_length, start_station_name, end_station_name, rideable_type)
+```
+  
+The docked bikes, that are not present on the *members*, are responsible for these bizarre times. What is also interesting is that on the company's website there's nothing about a docked_bike type. That means that I'm not satisfied. Let's filter out the docked bikes and see how the numbers change.  
+  
+```{r mean and max without docked bikes}
+mean(casuals$ride_length[casuals$rideable_type != "docked_bike"])
+max(casuals$ride_length[casuals$rideable_type != "docked_bike"])
+min(casuals$ride_length[casuals$rideable_type != "docked_bike"])
+```
+  
+That honestly makes significantly more sense now. The average time is still a lot higher, but less than double now, and the max ride time is almost the same. How much do they represent from the total rides, though?  
+  
+```{r how many of each bike type}
+table(casuals$rideable_type)
+```
+```{r quick maths casuals}
+(1132892/2522226) * 100 ## classic
+(226728/2522226) * 100 ## docked
+(1162606/2522226) * 100 ## electric
+```
+  
+Almost 9%, that's a significant number. I guess we can make graphs with and without them. Or maybe we could also just read the guidelines! But who wants to do that? Boring. Let's keep going, I guess. Doing the same for *members*...  
+  
+```{r bikes by type}
+table(members$rideable_type)
+```
+  
+```{r % of bikes by type}
+(1922749/3379237) * 100 ## classic
+(1456488/3379237) * 100 ## electric
+```
+  
+While most of the *casual* rides were by e-bikes, *members* have a clear preference for classic bikes.
+  
+Coming next: What weekday had the most rides? First we define a mode function (courtesy of https://www.statology.org/mode-in-r/).
+  
+```{r mode function}
+find_mode = function(x) {
+  u = unique(x)
+  tab = tabulate(match(x, u))
+  u[tab == max(tab)]
+}
+```
+  
+Next we use it!  
+  
+```{r weekday mode}
+find_mode(members$weekday)
+find_mode(casuals$weekday)
+```
+  
+Not surprisingly, *casuals* use the bikes more on the weekends and *members* during the week. 
+  
+Do you know what might look good on a chart? Number of rides/average ride time per day of the week. Let's get that.  
+  
+```{r how many rides per day casuals}
+length(which(casuals$weekday == "Monday"))
+length(which(casuals$weekday == "Tuesday"))
+length(which(casuals$weekday == "Wednesday"))
+length(which(casuals$weekday == "Thursday"))
+length(which(casuals$weekday == "Friday"))
+length(which(casuals$weekday == "Saturday"))
+length(which(casuals$weekday == "Sunday"))
+
+```
+  
+```{r moar quick maths}
+(527575/2522226)*100
+```
+  
+Saturday accounts for almost 21% of all the rides for *casuals*! And Tuesday is the day with the **least** amount of rides, exactly the opposite from *members*! Let's check the latter:  
+  
+```{r rides per day members}
+length(which(members$weekday == "Monday"))
+length(which(members$weekday == "Tuesday"))
+length(which(members$weekday == "Wednesday"))
+length(which(members$weekday == "Thursday"))
+length(which(members$weekday == "Friday"))
+length(which(members$weekday == "Saturday"))
+length(which(members$weekday == "Sunday"))
+```
+  
+Okay. So, every work day has more rides here than either Saturday or Sunday. We also notice that Sunday has the least number of rides, in contrast to the *casuals* where Sunday is the second day with most rides.  
+  
+```{r moar quick maths members}
+(523387/3379237) * 100
+```
+  
+15.48% of rides are on the most used day, being considerably better distributed along the week, contrary to *casuals* that heavily focus on weekends.  
+  
+Let's take a break. We have too much info all over the place, let's summarise some of this. First *members*, than *casuals*, than *casuals* without docked_bikes:  
+  
+```{r Summary}
+num_casuals2 = num_casuals - (length(which(casuals$rideable_type == "docked_bike")))
+
+ms = members %>% 
+  select(rideable_type, ride_length, weekday, member_casual) %>% 
+  summarise(member_casual = unique(member_casual), number_of_rides = print(num_members), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+cs = casuals %>% 
+  select(rideable_type, ride_length, weekday, member_casual) %>% 
+  summarise(member_casual = unique(member_casual), number_of_rides = print(num_casuals), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+cs2 = casuals %>% 
+  select(rideable_type, ride_length, weekday, member_casual) %>% 
+  filter(rideable_type != "docked_bike") %>% 
+  summarise(member_casual = unique(member_casual), number_of_rides = print(num_casuals2), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+```
+  
+We have found several differences already. A trend that is showing itself is that *casuals* use Cyclistic bikes not to commute to work, but rather for leisure activities, in comparison to *members*, that also like classic bikes more than e-bikes, which might also signify some preference for more exercise (e-bikes cost more than classics as well). If this trend holds, I bet we can see that *casuals* drop in numbers significantly more in the winter months compared to *members*. And that will be out next and last check honestly.  
+  
+```{r rides in winter}
+winter_members = members %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-12-22 00:00:00" & ended_at < "2022-03-22 00:00:00") %>% 
+  summarise(season = print("winter"), casual_member = print("member"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+winter_casuals = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-12-22 00:00:00" & ended_at < "2022-03-22 00:00:00") %>% 
+  summarise(season = print("winter"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+winter_casuals2 = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(rideable_type != "docked_bike" & started_at >= "2021-12-22 00:00:00" & ended_at < "2022-03-22 00:00:00") %>% 
+  summarise(season = print("winter"), casual_member = print("casual"), number_of_rides = table(member_casual), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+```
+  
+```{r rides in summer}
+summer_members = members %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-06-22 00:00:00" & ended_at < "2021-09-22 00:00:00") %>% 
+  summarise(season = print("summer"), casual_member = print("member"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+summer_casuals = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-06-22 00:00:00" & ended_at < "2021-09-22 00:00:00") %>% 
+  summarise(season = print("summer"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+summer_casuals2 = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(rideable_type != "docked_bike" & started_at >= "2021-06-22 00:00:00" & ended_at < "2021-09-22 00:00:00") %>% 
+  summarise(season = print("summer"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+```
+  
+```{r rides in spring}
+spring_members = members %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2022-03-22 00:00:00" & ended_at < "2022-06-22 00:00:00") %>% 
+  summarise(season = print("spring"), casual_member = print("member"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+spring_casuals = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2022-03-22 00:00:00" & ended_at < "2022-06-22 00:00:00") %>% 
+  summarise(season = print("spring"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+spring_casuals2 = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(rideable_type != "docked_bike" & started_at >= "2022-03-22 00:00:00" & ended_at < "2022-06-22 00:00:00") %>% 
+  summarise(season = print("spring"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+```
+  
+```{r rides in autumn}
+autumn_members = members %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-09-22 00:00:00" & ended_at < "2021-12-22 00:00:00") %>% 
+  summarise(season = print("autumn"), casual_member = print("member"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+autumn_casuals = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(started_at >= "2021-09-22 00:00:00" & ended_at < "2021-12-22 00:00:00") %>% 
+  summarise(season = print("autumn"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+
+autumn_casuals2 = casuals %>% 
+  select(rideable_type, ride_length, weekday, started_at, ended_at, member_casual) %>% 
+  filter(rideable_type != "docked_bike" & started_at >= "2021-09-22 00:00:00" & ended_at < "2021-12-22 00:00:00") %>% 
+  summarise(season = print("autumn"), casual_member = print("casual"), number_of_rides = table(member_casual), avg_ride_time = mean(ride_length), max_ride_time = max(ride_length), preferred_day = find_mode(weekday), total_ride_time_hours = (sum(ride_length)/60))
+```
+  
+We confirm our suspicions, the ride drop among *members* from summer to winter is of only about 50%, but among *casuals* the drop is brutal, over 80% less rides and about the same in total ride time. The preferred days stay true to the pattern already observed. So time to stop and check what the Project Guidelines wanted from us.  
+  
+**Guiding Questions**  
+  
+  * How should I organize my data to perform analysis on it?
+    * I honestly think in R the way I did it by having two different tables was the best way, else I'd have had to use filters all the time, in all queries and that would have been annoying in R. On a spreadsheet it would be fine, even in SQL, where filtering is as easy as `WHERE: member_casuals = 'member'`.
+  * Has my data been properly formatted?
+    * I do believe so, yes. It allowed me to manipulate it in all the ways I thought feasible.
+  * What surprises did you discover in the data?
+    * The negative ride times and docked bikes shenanigans. From the analysis itself I think I could have broadly guessed the results, if not the numbers. The only thing that I would have guessed incorrectly is that the majority of members use classic bikes and not e-bikes. I expected it to be the other way around.
+  * What trends or relationships did you find in the data?
+    * *Casuals* use the bikes more for fun and leisure activities, while *members* use them more to commute or to get around town during the week, as an alternative to other transport. I'd bet that if the geo-location data from this was analysed, it would show that *casuals* tend to ride around places where leisure is expected and *members* around parts of town related to work. But that would be a lot more work because I do not know Chicago and would require a lot of research if done in earnest, so it honestly just falls outside the scope of this project.
+    * As a result of the above, as temperature goes down, so does the number of rides, the correlation is very clear here. It happens both for *members* and *casuals*, even though the casual drop is quite higher.
+  * How will these insights help answer my business questions?
+    * I've collected several differences between how *members* and *casuals* engage Cyclistic bike-sharing service that will help my manager decide on how to create marketing material, I also have a couple suggestions on how to get more data.
+  
+**Key Tasks**
+  
+1. Aggregate your data so it's useful and accessible.
+  * Done.
+2. Organize and format your data.
+  * Done.
+3. Perform calculations.
+  * Just check the quick math chunks. /s
+4. Identify trends and relationships.
+  * Done.
+  
+**Deliverable**
+  
+* A summary of your analysis.
+  * After searching the project's forum, I found a mentor answer that I interpreted meaning that the docked_bikes were not actual rides, but bikes that just were charging on a dock. Therefore I decided to cull those from the *casual* final summary and visualizations, because they have a significant impact and don't really look like actual rides. Oh yeah, to the summary we bind a couple data frames we've created previously:  
+  
+```{r summaries}
+year_summary = bind_rows(ms, cs2)
+seasons_summary = bind_rows(winter_members, winter_casuals2, spring_members, spring_casuals2, summer_members, summer_casuals2, autumn_members, autumn_casuals2)
+```
+  
+Pretty neat I'd say.  
+  
+---
+  
+### Share  
+  
+And finally we get to the finish line.  
+  
+**Guiding questions**  
+  
+  * Was I able to answer the question of how annual members and casual riders use Cyclistic bikes differently?
+    * Yes. With the data we have we could also make hot-spots to see where the different categories use the bikes differently, but that would take more time. But the more I say I'm not gonna do it, the more I'm convinced that I should, it would look really great as a viz.
+  * What story does my data tell?
+    * *Casuals* use the service more on the weekends, for leisure activities, usually for longer on a single ride, their numbers drop by about 80% in Winter compared to Summer.
+    * *Members*, on the other hand, use the service more on workdays, possibly to commute and less for leisure. The average ride time is considerably lower compared to *casuals* and their number only drops by about 50% in Winter compared to Summer. BUT the highest number of rides and total hours for *members* are actually in Spring, and if we compare from its peak there, the drops is more significant, of about 2/3. Still less than the *casuals* drop though.
+    * The data also suggests that *members* usually drive smaller distances compared to *casuals*.
+  * How do my findings relate to your original question?
+    * They clearly showcase substantial differences between groups.
+  * Who is my audience? What is the best way to communicate with them?
+    * The director of marketing that's also my manager
+    * The Cyclistic executive team
+    * A quick presentation outlining the main differences.
+  * Can data visualization help me share my findings?
+    * Certainly, even though I believe the findings summary can be easily visualized on a table, we can also create charts for it.
+  * Is my presentation accessible to my audience?
+    * I'll abide by all best practices while making it. So I hope so.  
+  
+**Key Tasks**  
+  
+1. Determine the best way to share my findings.
+  * Here with this R Markdown and also on Tableau, so I can share it there as well. I'll also make a power point presentation.
+2. Create effective data visualizations.  
+  
+SURE.  
+  
+```{r individual rides plot}
+year_summary %>% 
+  ggplot() + 
+    geom_col(mapping = aes(x = member_casual, y = number_of_rides, fill = member_casual)) +
+    labs(title = "Number of Individual Rides", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 1, y = 1000000, label = "2,295,498 or 40.5%", fontface = "bold", size = 4) +
+    annotate("text", x = 2, y = 1600000, label = "3,379,237 or 59.5%", fontface = "bold", size = 4) +
+    xlab("Membership Status") +
+    ylab("Number of Rides") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```
+  
+```{r avarage ride time plot}
+year_summary %>% 
+  ggplot() + 
+    geom_col(mapping = aes(x = member_casual, y = avg_ride_time, fill = member_casual)) +
+    labs(title = "Avarage Ride Time", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 1, y = 11, label = "~23 minutes", fontface = "bold", size = 4) +
+    annotate("text", x = 2, y = 6, label = "~13 minutes", fontface = "bold", size = 4) +
+    xlab("Membership Status") +
+    ylab("Avarage Ride Time") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```
+  
+```{r total ride time plot}
+year_summary %>% 
+  ggplot() + 
+    geom_col(mapping = aes(x = member_casual, y = total_ride_time_hours, fill = member_casual)) +
+    labs(title = "Total Ride Time (in hours)", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 1, y = 400000, label = "~886,521 hours or 55%", fontface = "bold", size = 4) +
+    annotate("text", x = 2, y = 300000, label = "~728,340 hours or 45%", fontface = "bold", size = 4) +
+    xlab("Membership Status") +
+    ylab("Ride Time in Hours") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```  
+  
+The next chunk creates a weekday table for us to visualize:  
+  
+```{r number of rides by weekday table}
+## The first part of the code is just to create a Number of Rides per day of the Week table
+casuals2 = filter(casuals, rideable_type != "docked_bike")
+m_weekday = data.frame(table(members$weekday))
+c_weekday = data.frame(table(casuals2$weekday))
+
+## Bind them
+weekdays_long = bind_cols(m_weekday, c_weekday)
+
+## delete the repeated column
+weekdays_long = weekdays_long %>% 
+  select(-Var1...3)
+
+## Rename the columns
+weekdays_long = weekdays_long %>% rename_at(1, ~'weekday')
+weekdays_long = weekdays_long %>% rename_at(2, ~'member_rides')
+weekdays_long = weekdays_long %>% rename_at(3, ~'casual_rides')
+
+## Reorganize the columns (this turned out to be useless and I had to sort it again inside the plot)
+weekdays_long = weekdays_long %>% arrange(factor(weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")))
+
+## Melt them so we can plot both members and casuals side by side
+library(reshape2)
+weekdays_final = melt(weekdays_long, id.vars = "weekday")
+weekdays_final  %>%  rename_at(2, ~"membership_status")
+```
+  
+Now we can visualize it:  
+  
+```{r ride per day of the week plot}
+weekdays_final %>%
+  ggplot(aes(x = factor(weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")), y = value, fill = factor(variable, levels = c("casual_rides", "member_rides")))) +
+    geom_bar(stat='identity', position='dodge') +
+    labs(title = "Number of Rides by Weekday", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 2, y = 400000, label = "Members preferred day: \nTuesday: 523,387 rides", fontface = "bold", size = 4) +
+    annotate("text", x = 6, y = 400000, label = "Casuals preferred day: \nSaturday: 472,663 rides", fontface = "bold", size = 4) +
+    xlab("Days of the Week") +
+    ylab("Number of Rides") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```
+
+Last but not least we visualize the number of rides per season. And yeah, we'll manipulate the seasons_summary data frame before we do visualize it...  
+  
+```{r rides per season plot}
+seasons_summary$number_of_rides = as.numeric(as.character(seasons_summary$number_of_rides))
+seasons_summary %>% 
+  rename_at(2, ~'Membership_Status') %>% 
+  ggplot(aes(x = factor(season, levels = c("winter", "spring", "summer", "autumn")), y = number_of_rides, fill = Membership_Status)) +
+    geom_bar(stat='identity', position='dodge') +
+    labs(title = "Number of Rides per Season", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 2, y = 700000, label = "Member Rides peak: \n Spring: 924,990", fontface = "bold", size = 4) +
+    annotate("text", x = 2, y = 400000, label = "Casual Rides peak: \n Spring: 614,813", fontface = "bold", size = 4) +
+    xlab("Seasons") +
+    ylab("Number of Rides") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```
+  
+I just now realized that the number of *member* rides actually goes **down** in Summer, further supporting that they use it often to work. Even though the number of rides is highest for *casuals* in Spring, the highest number of hours is actually in Summer:  
+  
+```{r hours per season plot}
+seasons_summary %>% 
+  rename_at(2, ~'Membership_Status') %>% 
+  ggplot(aes(x = factor(season, levels = c("winter", "spring", "summer", "autumn")), y = total_ride_time_hours, fill = Membership_Status)) +
+    geom_bar(stat='identity', position='dodge') +
+    labs(title = "Total Number of Hours per Season", subtitle = "From August 2021 to July 2022", fill = "Membership Status") +
+    annotate("text", x = 2, y = 198000, label = "Member Hours peak: \n Spring: ~198,869", fontface = "bold", size = 4) +
+    annotate("text", x = 3, y = 253100, label = "Casual Hours peak: \n Summer: ~253,100", fontface = "bold", size = 4) +
+    xlab("Seasons") +
+    ylab("Number of Hours") +
+    scale_fill_discrete(labels = c("Casuals", "Members")) +
+    theme_dark()
+```
+  
+I have to try one last plot, a pie chart of the number of rides distributed per season. I think it would look good, but it's also probably going to be a pain. Oh, well:  
+  
+```{r seasons pie chart preparation}
+## first we create seasons data frame for each category
+seasons_members = rbind(winter_members, spring_members, summer_members, autumn_members)
+seasons_casuals = rbind(winter_casuals2, spring_casuals2, summer_casuals2, autumn_casuals2)
+
+## then we count the number of rides total, because the time period doesn't line exactly with the previous total that we have for the last 12 months
+seasons_members %>% 
+  summarise(total_rides = sum(number_of_rides))
+seasons_casuals %>% 
+  summarise(total_rides = sum(number_of_rides))
+
+member_season_rides = 2833163
+casual_season_rides = 1811908
+
+## quick maths, I'm tired and honestly didn't want to try to make this look better, so I just copy/pasted numbers.. and yeah, I know that the variable names are not ideal
+winc_rides = (116742/casual_season_rides)*100
+sprc_rides = (614813/casual_season_rides)*100
+sumc_rides = (610481/casual_season_rides)*100
+autc_rides = (469872/casual_season_rides)*100
+
+winm_rides = (352623/member_season_rides)*100
+sprm_rides = (924990/member_season_rides)*100
+summ_rides = (663974/member_season_rides)*100
+autm_rides = (891576/member_season_rides)*100
+
+## making a column with the above results, after rounding them:
+casual_number_of_rides_percent = round(c(winc_rides, sprc_rides, sumc_rides, autc_rides))
+member_number_of_rides_percent = round(c(winm_rides, sprm_rides, summ_rides, autm_rides))
+
+## binding those new columns to the seasons data frames:
+seasons_casuals = cbind(seasons_casuals, casual_number_of_rides_percent)
+seasons_members = cbind(seasons_members, member_number_of_rides_percent)
+```
+  
+Actually plotting those:  
+  
+```{r casuals season pie chart}
+seasons_casuals %>% 
+  ggplot(aes(x="", y = casual_number_of_rides_percent, fill = season) ) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar("y", start = 0) +
+    geom_text(aes(label = paste0(casual_number_of_rides_percent, "%")), position = position_stack(vjust=0.5)) +
+    labs(title = "Number of Casual Rides per Season (in % of total rides)", subtitle = "From August 2021 to July 2022", x = NULL, y = NULL, fill = NULL) +
+    theme_dark() +
+    theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+    scale_fill_manual(values=c("#efa00f", "#3dd505", "#dd350e", "#15bddf"))
+```
+  
+```{r members season pie chart}
+seasons_casuals %>% 
+  ggplot(aes(x="", y = member_number_of_rides_percent, fill = season) ) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar("y", start = 0) +
+    geom_text(aes(label = paste0(member_number_of_rides_percent, "%")), position = position_stack(vjust=0.5)) +
+    labs(title = "Number of Member Rides per Season (in % of total rides)", subtitle = "From August 2021 to July 2022", x = NULL, y = NULL, fill = NULL) +
+    theme_dark() +
+    theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+    scale_fill_manual(values=c("#efa00f", "#3dd505", "#dd350e", "#15bddf"))
+```
+  
+I'm gonna call it here.  
+  
+3. Present my findings.
+  * Will do.
+4. Ensure my work is accessible.
+  * Maybe if someone can't differentiate between red/orange or blue/green it could be a problem to understand the pie charts at the end. I'm too tired to look it up, though.
+  
+**Deliverable**
+  * Supporting visualizations and key findings.
+    * Done above.
+  
+---
+  
+### Act
+  
+**Guiding Questions**  
+  
+  * What is my final conclusion based on my analysis?
+    * The analysed categories differentiate themselves in the following key points:
+      1. *Members* ride more than *Casuals*: 59.5% vs 40.5% respectively.
+      2. *Members* use slightly less stations than *Casuals*.
+      3. *Members* have significant lower average ride times than *Casuals*: 13 mins. vs 23 mins
+      4. *Members* use more Classic Bikes and *Casuals* use slightly more E-Bikes.
+      5. *Members* ride more in work days and *Casuals* on the weekends.
+      6. The number of *Members'* rides during Winter drop by about 65%, while *Casuals* drop by about 80%.
+  * How could my team and business apply my insights?
+    * By making data-driven decisions based on my findings.
+  * What next steps would I or my stakeholders take based on my findings?
+    * Create and properly target marketing material in order to convert *Casuals* to *Members*.
+  * Is there additional data I could use to expand on my findings?
+    * Yes, even on this data set, the coordinates could be used to map out the city and better understand how the service is used, and use this findings for example to decide where to put marketing material around the city.
+    * It would also be interesting to know how many rides each user had.
+  
+**Key tasks**  
+  
+1. Create my portfolio.
+  * I find myself in a paradox. In order to create my portfolio, I have to finish this this project, in order to finish this project, I have to create my portfolio.
+    * Easy solution. Call this a day and promise to share it after it's done.
+2. Add this case study.
+  * Same problem as above.
+3. Practice presenting my case study to friends and family.
+  * Will do as soon as I'm finished here.
+  
+**Deliverables**  
+  
+* My top three recommendations based on my analysis:
+  1. Survey users to make sure that the assumptions based on this analysis are correct, and to better understand why *members* decided for a membership.
+  2. Stimulate *casuals* to adopt bikes as their daily commute method.
+  3. Spread marketing material based on the days and regions where *Casuals* use the service the most.
+  
+---
+  
+### Epilogue
+  
+**Exporting** Data Frames to use/share elsewhere.  
+  
+```{r exporting data, eval=FALSE, include=FALSE}
+## This chunk will not run by default
+## let's make a single data frame with all our data
+cyclistic = rbind(casuals2, members)
+
+## then we export the tables we want
+write_csv(cyclistic, "C://Users//Felix//OneDrive//Documents//cyclistic_data.csv")
+write_csv(year_summary, "C://Users//Felix//OneDrive//Documents//year_summary.csv")
+write_csv(seasons_summary, "C://Users//Felix//OneDrive//Documents//seasons_summary.csv")
+write_csv(cyclistic_summary, "C://Users//Felix//OneDrive//Documents//cyclistic_summary.csv")
+write_csv(weekdays_final, "C://Users//Felix//OneDrive//Documents//weekdays_summary.csv")
+```
