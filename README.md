@@ -3,7 +3,7 @@ This Case Study was done as a requirement for the Google Data Analytics Certific
 
 In this case study, I used real data from a Bike Sharing Service from Chicago, though the name Cyclistic is fictional. I evaluated how different types of users engage with the service, determining trends and theorizing what was causing them. I was then able to develop an action plan based on those findings.
 
-The easiest way to visualize this project is by downloading the Cyclistic.html and opening it on your browser.
+The easiest way to visualize this project is by downloading the Cyclistic.html and opening it on your browser. For a nice Viz, you can check a summary on [Tableau](https://public.tableau.com/app/profile/lucas3082/viz/CyclisticBikeSharing_16628952942550/CyclisticStory).
 
 If by any chance you want to run this code, you might have to adjust file paths, and/or put your data in a different directory.
 
@@ -14,7 +14,7 @@ If by any chance you want to run this code, you might have to adjust file paths,
 * Download the .csv (https://divvy-tripdata.s3.amazonaws.com/index.html) files from August 2021 to July 2022.
 * Download the Cyclistic.Rmd
 
-The goal of this case study was to find the differences between Casual and Member users in the last 12 months (August 2021 to July 2022). A Casual is defined as someone that bought a single ride or daily pass, while a Member is an individual that bought a yearly subscription.
+The goal of this case study was to find the differences between Casual and Member users in the last 12 months (August 2021 to July 2022). A Casual is defined as someone that bought a single ride or daily pass, while a Member is an individual who bought a yearly subscription.
 
 **Here's a preview of the findings:**
 
