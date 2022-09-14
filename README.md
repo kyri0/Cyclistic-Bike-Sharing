@@ -3,7 +3,7 @@ This Case Study was done as a requirement for the Google Data Analytics Certific
 
 In this case study, I used real data from a Bike Sharing Service from Chicago, though the name Cyclistic is fictional. I evaluated how different types of users engage with the service, determining trends and theorizing what was causing them. I was then able to develop an action plan based on those findings.
 
-The easiest way to visualize this project is by downloading the Cyclistic.html and opening it on your browser. For a nice Viz, you can check a summary on [Tableau](https://public.tableau.com/app/profile/lucas3082/viz/CyclisticBikeSharing_16628952942550/CyclisticStory).
+The easiest way to visualize this project is by downloading the Cyclistic.html and opening it on your browser. For a nice Viz, you can check a summary on [Tableau](https://public.tableau.com/app/profile/lucas3082/viz/HowDoesaBike-ShareNavigateSpeedySuccess_16630888410730/CyclisticStory).
 
 If by any chance you want to run this code, you might have to adjust file paths, and/or put your data in a different directory.
 
